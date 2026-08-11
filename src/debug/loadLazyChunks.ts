@@ -40,7 +40,7 @@ export async function loadLazyChunks() {
         return;
     }
 
-    const queue = pLimit(50);
+    const queue = pLimit(100);
     const workerAssetCache = new Map<string, Promise<boolean>>();
     const WORKER_ASSET_REGEX = /importScripts\(|self\.postMessage/;
 
