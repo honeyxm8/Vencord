@@ -79,7 +79,7 @@ export async function loadLazyChunks() {
 
             const shouldForceDefer = false;
 
-            await Promise.all(Array.from(lazyChunks).map(async ([, rawChunkIds, entryPoint]) => {
+            lazyChunks.forEach(([, rawChunkIds, entryPoint]) => {
                 const chunkIds = rawChunkIds
                     ?.matchAll(Webpack.ChunkIdsRegex)
                     .map(m => {
@@ -107,13 +107,6 @@ export async function loadLazyChunks() {
                     }
 
                     if (wreq.u(id) == null || wreq.u(id) === "undefined.js") continue;
-
-                    if (await isWorkerAsset(wreq.p + wreq.u(id))) {
-                        invalidChunks.add(id);
-                        invalidChunkGroup = true;
-                        continue;
-                    }
-
                     validChunks.add(id);
                 }
 
@@ -121,7 +114,7 @@ export async function loadLazyChunks() {
                     const numEntryPoint = Number(entryPoint);
                     validChunkGroups.add([chunkIds, Number.isNaN(numEntryPoint) ? entryPoint : String(numEntryPoint)]);
                 }
-            }));
+            });
 
             // Loads all found valid chunk groups
             await Promise.all(
@@ -198,14 +191,7 @@ export async function loadLazyChunks() {
             return !(validChunks.has(id) || invalidChunks.has(id));
         });
 
-        await Promise.all(chunksLeft.map(async id => queue(async () => {
-            // We will deadlock if we use the queue inside a queue func
-            const isWorkerFile = await isWorkerAsset(wreq.p + wreq.u(id), false);
-
-            if (!isWorkerFile) {
-                await wreq.e(id);
-            }
-        })));
+        await Promise.all(chunksLeft.map(id => wreq.e(id)));
 
         LazyChunkLoaderLogger.log("Finished loading all chunks!");
         chunksAlreadyLoaded = true;
