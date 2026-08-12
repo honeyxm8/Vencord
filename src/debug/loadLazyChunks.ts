@@ -12,22 +12,45 @@ import { wreq } from "@webpack";
 import { AnyModuleFactory } from "@webpack/types";
 import pLimit from "p-limit";
 
-function getWebpackChunkMap() {
-    const sym = Symbol();
-    let chunksMap: unknown = null;
+function getWebpackChunkFilenameMap() {
+    const dummySym = Symbol("getWebpackChunkFilenameMap");
+    let chunkFilenameMap: unknown = null;
 
-    Object.defineProperty(Object.prototype, sym, {
+    Object.defineProperty(Object.prototype, dummySym, {
         get() {
-            chunksMap = this;
+            chunkFilenameMap = this;
             return "";
         },
         configurable: true
     });
 
-    wreq.u(sym);
-    delete Object.prototype[sym];
+    wreq.u(dummySym);
+    delete Object.prototype[dummySym];
 
-    return chunksMap as Record<PropertyKey, string> | null;
+    return chunkFilenameMap as Record<PropertyKey, string> | null;
+}
+
+async function getWebpackEnsureChunkRetryMap() {
+    let isSameTick = true;
+    setTimeout(() => isSameTick = false, 0);
+
+    const { promise: ensureChunkRetryMap, resolve: resolveEnsureChunkRetryMap } = Promise.withResolvers<Record<PropertyKey, number>>();
+
+    const originalHasOwnProperty = Object.prototype.hasOwnProperty;
+    Object.prototype.hasOwnProperty = function (v: PropertyKey) {
+        const isWrongCallback = Object.values(this).some(value => value === 0);
+
+        if (v === -1 && !isSameTick && !isWrongCallback) {
+            resolveEnsureChunkRetryMap(this as Record<PropertyKey, number>);
+            Object.prototype.hasOwnProperty = originalHasOwnProperty;
+        }
+
+        return originalHasOwnProperty.call(this, v);
+    };
+
+    wreq.e(-1);
+
+    return ensureChunkRetryMap;
 }
 
 let chunksAlreadyLoaded = false;
@@ -51,6 +74,9 @@ export async function loadLazyChunks() {
 
     try {
         LazyChunkLoaderLogger.log("Loading all chunks...");
+
+        const ensureChunkRetryMap = await getWebpackEnsureChunkRetryMap();
+        if (!ensureChunkRetryMap) throw new Error("Failed to get ensure chunk retry map");
 
         const validChunks = new Set<PropertyKey>();
         const invalidChunks = new Set<PropertyKey>();
@@ -120,7 +146,10 @@ export async function loadLazyChunks() {
             await Promise.all(
                 Array.from(validChunkGroups)
                     .map(([chunkIds]) =>
-                        Promise.all(chunkIds.map(id => wreq.e(id).catch(() => { })))
+                        Promise.all(chunkIds.map(id => {
+                            ensureChunkRetryMap[id] = 0;
+                            wreq.e(id).catch(() => { });
+                        }))
                     )
             );
 
@@ -179,10 +208,10 @@ export async function loadLazyChunks() {
         }
 
         // All chunks Discord has mapped to asset files, even if they are not used anymore
-        const chunksMap = getWebpackChunkMap();
-        if (!chunksMap) throw new Error("Failed to get chunk map");
+        const chunkFilenameMap = getWebpackChunkFilenameMap();
+        if (!chunkFilenameMap) throw new Error("Failed to get chunk filename map");
 
-        const allChunks = Object.keys(chunksMap);
+        const allChunks = Object.keys(chunkFilenameMap);
         if (allChunks.length === 0) throw new Error("Failed to get all chunks");
 
         // Chunks which our regex could not catch to load
