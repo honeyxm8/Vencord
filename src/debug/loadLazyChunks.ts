@@ -148,7 +148,7 @@ export async function loadLazyChunks() {
                     .map(([chunkIds]) =>
                         Promise.all(chunkIds.map(id => {
                             ensureChunkRetryMap[id] = 0;
-                            wreq.e(id).catch(() => { });
+                            return wreq.e(id).catch(() => { });
                         }))
                     )
             );
@@ -222,7 +222,7 @@ export async function loadLazyChunks() {
 
         await Promise.all(chunksLeft.map(id => {
             ensureChunkRetryMap[id] = 0;
-            wreq.e(id).catch(() => { });
+            return wreq.e(id).catch(() => { });
         }));
 
         LazyChunkLoaderLogger.log("Finished loading all chunks!");
