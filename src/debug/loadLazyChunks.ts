@@ -41,6 +41,7 @@ async function getWebpackEnsureChunkRetryMap() {
         const isWrongCallback = Object.values(this).some(value => value === 0);
 
         if (v === -1 && !isSameTick && !isWrongCallback) {
+            this[-1] = 0;
             resolveEnsureChunkRetryMap(this as Record<PropertyKey, number>);
             Object.prototype.hasOwnProperty = originalHasOwnProperty;
         }
