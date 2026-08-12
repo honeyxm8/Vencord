@@ -220,7 +220,10 @@ export async function loadLazyChunks() {
             return !(validChunks.has(id) || invalidChunks.has(id));
         });
 
-        await Promise.all(chunksLeft.map(id => wreq.e(id).catch(() => { })));
+        await Promise.all(chunksLeft.map(id => {
+            ensureChunkRetryMap[id] = 0;
+            wreq.e(id).catch(() => { });
+        }));
 
         LazyChunkLoaderLogger.log("Finished loading all chunks!");
         chunksAlreadyLoaded = true;
